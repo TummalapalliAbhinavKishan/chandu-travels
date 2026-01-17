@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Temple-inspired warm tones */
+    --background: 35 25% 97%;
+    --foreground: 25 40% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 25 40% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 25 40% 15%;
+
+    /* Sacred Saffron - Primary Brand Color */
+    --primary: 25 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    
+    /* Golden Accent */
+    --secondary: 45 100% 50%;
+    --secondary-foreground: 25 40% 15%;
+
+    /* Warm Muted Tones */
+    --muted: 35 20% 92%;
+    --muted-foreground: 25 30% 40%;
+
+    /* Deep Maroon Accent */
+    --accent: 0 60% 35%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 35 30% 88%;
+    --input: 35 30% 88%;
+    --ring: 25 95% 53%;
+
+    --radius: 0.75rem;
+
+    /* Premium Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(25 95% 53%), hsl(35 100% 50%));
+    --gradient-divine: linear-gradient(180deg, hsl(25 95% 53% / 0.1), hsl(45 100% 50% / 0.05));
+    
+    /* Elegant Shadows */
+    --shadow-divine: 0 10px 40px -10px hsl(25 95% 53% / 0.3);
+    --shadow-soft: 0 4px 20px -2px hsl(25 40% 15% / 0.1);
+
+    /* Smooth Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark {
+    --background: 25 35% 8%;
+    --foreground: 35 15% 95%;
+
+    --card: 25 30% 12%;
+    --card-foreground: 35 15% 95%;
+
+    --popover: 25 30% 12%;
+    --popover-foreground: 35 15% 95%;
+
+    --primary: 25 95% 53%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 45 80% 45%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 25 25% 18%;
+    --muted-foreground: 35 10% 65%;
+
+    --accent: 0 60% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 25 25% 22%;
+    --input: 25 25% 22%;
+    --ring: 25 95% 53%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
