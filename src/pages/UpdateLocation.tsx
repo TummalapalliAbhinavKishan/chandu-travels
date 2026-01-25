@@ -1,7 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +35,7 @@ interface Booking {
 const UpdateLocation = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [selectedBookingId, setSelectedBookingId] = useState("");
   const [latitude, setLatitude] = useState("");
@@ -38,32 +45,36 @@ const UpdateLocation = () => {
   const [gettingLocation, setGettingLocation] = useState(false);
 
   useEffect(() => {
-    checkAuth();
+    checkAdmin();
   }, []);
 
-  const checkAuth = async () => {
+  // 🔐 ADMIN AUTH CHECK (profiles.role ONLY)
+  const checkAdmin = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
         navigate("/admin/login");
         return;
       }
 
-      const { data: roleData } = await supabase
-        .from("user_roles")
+      const { data, error } = await (supabase as any)
+        .from("profiles")
         .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
+        .eq("id", session.user.id)
         .single();
 
-      if (!roleData) {
+      if (error || data?.role !== "admin") {
+        await supabase.auth.signOut();
         navigate("/admin/login");
         return;
       }
 
+      // ✅ Admin verified
       fetchActiveBookings();
-    } catch (error) {
+    } catch {
       navigate("/admin/login");
     }
   };
@@ -72,14 +83,17 @@ const UpdateLocation = () => {
     try {
       const { data, error } = await supabase
         .from("bookings")
-        .select("id, order_number, name, pickup_location, drop_location, status")
+        .select(
+          "id, order_number, name, pickup_location, drop_location, status"
+        )
         .in("status", ["confirmed", "in_progress"])
         .order("pickup_date", { ascending: true });
 
       if (error) throw error;
+
       setBookings(data || []);
     } catch (error) {
-      console.error("Error fetching bookings:", error);
+      console.error(error);
       toast({
         title: "Error",
         description: "Failed to load bookings.",
@@ -92,7 +106,7 @@ const UpdateLocation = () => {
 
   const getCurrentLocation = () => {
     setGettingLocation(true);
-    
+
     if (!navigator.geolocation) {
       toast({
         title: "Not Supported",
@@ -110,33 +124,28 @@ const UpdateLocation = () => {
         setGettingLocation(false);
         toast({
           title: "Location Retrieved",
-          description: "Your current location has been captured.",
+          description: "Current location captured.",
         });
       },
-      (error) => {
-        console.error("Error getting location:", error);
+      () => {
         toast({
           title: "Location Error",
-          description: "Failed to get your current location. Please enter manually.",
+          description: "Unable to fetch location. Enter manually.",
           variant: "destructive",
         });
         setGettingLocation(false);
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 0,
-      }
+      { enableHighAccuracy: true, timeout: 5000 }
     );
   };
 
   const handleUpdateLocation = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!selectedBookingId || !latitude || !longitude) {
       toast({
         title: "Missing Information",
-        description: "Please select a booking and provide location coordinates.",
+        description: "Please select booking and enter coordinates.",
         variant: "destructive",
       });
       return;
@@ -148,7 +157,7 @@ const UpdateLocation = () => {
     if (isNaN(lat) || isNaN(lng)) {
       toast({
         title: "Invalid Coordinates",
-        description: "Please enter valid latitude and longitude values.",
+        description: "Enter valid latitude and longitude.",
         variant: "destructive",
       });
       return;
@@ -157,28 +166,25 @@ const UpdateLocation = () => {
     setUpdating(true);
 
     try {
-      const { error } = await supabase
-        .from("driver_locations")
-        .insert({
-          booking_id: selectedBookingId,
-          latitude: lat,
-          longitude: lng,
-        });
+      const { error } = await supabase.from("driver_locations").insert({
+        booking_id: selectedBookingId,
+        latitude: lat,
+        longitude: lng,
+      });
 
       if (error) throw error;
 
       toast({
         title: "Location Updated",
-        description: "Driver location has been updated successfully.",
+        description: "Driver location updated successfully.",
       });
 
       setLatitude("");
       setLongitude("");
-    } catch (error) {
-      console.error("Error updating location:", error);
+    } catch {
       toast({
         title: "Error",
-        description: "Failed to update location. Please try again.",
+        description: "Failed to update location.",
         variant: "destructive",
       });
     } finally {
@@ -206,34 +212,33 @@ const UpdateLocation = () => {
                 Update Driver Location
               </CardTitle>
               <CardDescription>
-                Update the live GPS location for active bookings
+                Update live GPS location for active bookings
               </CardDescription>
             </CardHeader>
+
             <CardContent>
               <form onSubmit={handleUpdateLocation} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="booking">Select Booking</Label>
-                  <Select value={selectedBookingId} onValueChange={setSelectedBookingId}>
+                  <Label>Select Booking</Label>
+                  <Select
+                    value={selectedBookingId}
+                    onValueChange={setSelectedBookingId}
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder="Choose a booking..." />
+                      <SelectValue placeholder="Choose booking..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {bookings.map((booking) => (
-                        <SelectItem key={booking.id} value={booking.id}>
-                          {booking.order_number} - {booking.name} ({booking.pickup_location})
+                      {bookings.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.order_number} - {b.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {bookings.length === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      No active bookings available. Bookings must be confirmed or in progress.
-                    </p>
-                  )}
                 </div>
 
-                <div className="border-t pt-6">
-                  <div className="flex items-center justify-between mb-4">
+                <div className="border-t pt-6 space-y-4">
+                  <div className="flex justify-between">
                     <Label>GPS Coordinates</Label>
                     <Button
                       type="button"
@@ -243,7 +248,7 @@ const UpdateLocation = () => {
                       disabled={gettingLocation}
                     >
                       {gettingLocation ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
                       ) : (
                         <NavigationIcon className="h-4 w-4 mr-2" />
                       )}
@@ -251,33 +256,16 @@ const UpdateLocation = () => {
                     </Button>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="latitude">Latitude</Label>
-                      <Input
-                        id="latitude"
-                        type="number"
-                        step="any"
-                        placeholder="e.g., 13.0843"
-                        value={latitude}
-                        onChange={(e) => setLatitude(e.target.value)}
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="longitude">Longitude</Label>
-                      <Input
-                        id="longitude"
-                        type="number"
-                        step="any"
-                        placeholder="e.g., 80.2705"
-                        value={longitude}
-                        onChange={(e) => setLongitude(e.target.value)}
-                        required
-                      />
-                    </div>
-                  </div>
+                  <Input
+                    placeholder="Latitude"
+                    value={latitude}
+                    onChange={(e) => setLatitude(e.target.value)}
+                  />
+                  <Input
+                    placeholder="Longitude"
+                    value={longitude}
+                    onChange={(e) => setLongitude(e.target.value)}
+                  />
                 </div>
 
                 <Button
@@ -285,17 +273,7 @@ const UpdateLocation = () => {
                   className="w-full"
                   disabled={updating || !selectedBookingId}
                 >
-                  {updating ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Updating...
-                    </>
-                  ) : (
-                    <>
-                      <MapPin className="mr-2 h-4 w-4" />
-                      Update Location
-                    </>
-                  )}
+                  {updating ? "Updating..." : "Update Location"}
                 </Button>
               </form>
             </CardContent>

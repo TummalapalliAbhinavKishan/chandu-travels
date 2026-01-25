@@ -26,7 +26,7 @@ const VideoIntro = () => {
         playsInline
         onEnded={handleVideoEnd}
       >
-        <source src={chandVideo} type="video/mp4" />
+        <source src={chandVideo} type="" />
         Your browser does not support the video tag.
       </video>
     </div>

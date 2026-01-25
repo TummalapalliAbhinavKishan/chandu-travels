@@ -8,39 +8,46 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const checkAdmin = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
           setIsAdmin(false);
-          setIsLoading(false);
           return;
         }
 
-        const { data: roleData } = await supabase
-          .from("user_roles")
+        const { data, error } = await supabase
+          .from("profiles")
           .select("role")
-          .eq("user_id", user.id)
-          .eq("role", "admin")
-          .single();
+          .eq("id", session.user.id)
+          .maybeSingle();
 
-        setIsAdmin(!!roleData);
-      } catch (error) {
+        if (error) {
+          console.error("Profile fetch error:", error);
+          setIsAdmin(false);
+          return;
+        }
+
+        setIsAdmin(data?.role === "admin");
+      } catch (err) {
+        console.error("ProtectedRoute error:", err);
         setIsAdmin(false);
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     };
 
     checkAdmin();
   }, []);
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

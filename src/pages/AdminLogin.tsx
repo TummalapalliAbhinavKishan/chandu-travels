@@ -1,10 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Shield } from "lucide-react";
 import { z } from "zod";
@@ -18,14 +24,20 @@ const AdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+
   const navigate = useNavigate();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    console.log("SUPABASE URL FROM APP:", import.meta.env.VITE_SUPABASE_URL);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
+      // 🔍 Validate form
       const validation = loginSchema.safeParse({ email, password });
       if (!validation.success) {
         toast({
@@ -36,41 +48,68 @@ const AdminLogin = () => {
         return;
       }
 
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // 🔐 Login
+      const { data: authData, error: authError } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
       if (authError) throw authError;
 
-      // Check if user has admin role
-      const { data: roleData, error: roleError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", authData.user.id)
-        .eq("role", "admin")
-        .single();
+      const userId = authData?.user?.id;
+      console.log("AUTH USER ID:", userId);
+      console.log("AUTH USER EMAIL:", authData?.user?.email);
 
-      if (roleError || !roleData) {
-        await supabase.auth.signOut();
+      if (!userId) {
         toast({
           title: "Access Denied",
-          description: "You don't have admin privileges",
+          description: "No user id from auth",
           variant: "destructive",
         });
         return;
       }
 
+      // 🔍 READ PROFILE DIRECTLY (NO TYPING, NO RLS ASSUMPTIONS)
+      const { data: profile, error: profileError } = await (supabase as any)
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+
+      console.log("PROFILE FROM DB:", profile);
+      console.log("PROFILE ERROR:", profileError);
+
+      if (!profile) {
+        toast({
+          title: "Access Denied",
+          description: "Profile row not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (profile.role !== "admin") {
+        toast({
+          title: "Access Denied",
+          description: `Role is '${profile.role}', not admin`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // ✅ SUCCESS
       toast({
         title: "Success",
-        description: "Logged in successfully",
+        description: "Logged in as admin",
       });
 
       navigate("/admin/dashboard");
     } catch (error: any) {
+      console.error("LOGIN ERROR:", error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to login",
+        title: "Login Failed",
+        description: error.message || "Something went wrong",
         variant: "destructive",
       });
     } finally {
@@ -88,32 +127,33 @@ const AdminLogin = () => {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">Admin Login</CardTitle>
-          <CardDescription>Enter your credentials to access the admin panel</CardDescription>
+          <CardDescription>
+            Enter your credentials to access the admin panel
+          </CardDescription>
         </CardHeader>
+
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label>Email</Label>
               <Input
-                id="email"
                 type="email"
-                placeholder="admin@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label>Password</Label>
               <Input
-                id="password"
                 type="password"
-                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
+
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Logging in..." : "Login"}
             </Button>

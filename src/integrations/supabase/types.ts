@@ -7,8 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
@@ -65,6 +63,7 @@ export type Database = {
         }
         Relationships: []
       }
+
       contact_messages: {
         Row: {
           created_at: string
@@ -98,6 +97,7 @@ export type Database = {
         }
         Relationships: []
       }
+
       driver_locations: {
         Row: {
           booking_id: string
@@ -127,34 +127,32 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bookings"
             referencedColumns: ["id"]
-          },
+          }
         ]
       }
-      user_roles: {
+
+      /* ✅ ADDED — DO NOT REMOVE */
+      profiles: {
         Row: {
-          created_at: string | null
           id: string
           role: Database["public"]["Enums"]["app_role"]
-          user_id: string
         }
         Insert: {
-          created_at?: string | null
-          id?: string
+          id: string
           role?: Database["public"]["Enums"]["app_role"]
-          user_id: string
         }
         Update: {
-          created_at?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
-          user_id?: string
         }
         Relationships: []
       }
     }
+
     Views: {
       [_ in never]: never
     }
+
     Functions: {
       generate_order_number: { Args: never; Returns: string }
       has_role: {
@@ -165,9 +163,11 @@ export type Database = {
         Returns: boolean
       }
     }
+
     Enums: {
       app_role: "admin" | "user"
     }
+
     CompositeTypes: {
       [_ in never]: never
     }
@@ -176,7 +176,7 @@ export type Database = {
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type DefaultSchema = DatabaseWithoutInternals["public"]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
@@ -272,23 +272,6 @@ export type Enums<
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
-
-export type CompositeTypes<
-  PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
 
 export const Constants = {

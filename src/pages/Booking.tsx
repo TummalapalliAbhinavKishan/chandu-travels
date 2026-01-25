@@ -17,13 +17,13 @@ import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 
 const bookingSchema = z.object({
-  name: z.string().trim().min(2, "Name must be at least 2 characters").max(100),
-  email: z.string().trim().email("Invalid email address").max(255),
-  phone: z.string().trim().min(10, "Phone must be at least 10 digits").max(15),
-  pickup_location: z.string().trim().min(3, "Pickup location is required").max(200),
-  drop_location: z.string().trim().min(3, "Drop location is required").max(200),
-  passengers: z.number().min(1).max(20),
-  special_requests: z.string().max(500).optional(),
+  name: z.string().min(2),
+  email: z.string().email(),
+  phone: z.string().min(10),
+  pickup_location: z.string().min(3),
+  drop_location: z.string().min(3),
+  passengers: z.number().min(1),
+  special_requests: z.string().optional(),
 });
 
 const Booking = () => {
@@ -31,6 +31,7 @@ const Booking = () => {
   const [date, setDate] = useState<Date>();
   const [time, setTime] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -53,42 +54,50 @@ const Booking = () => {
       const validated = bookingSchema.parse(formData);
       setIsSubmitting(true);
 
-      const { data, error } = await supabase.from("bookings").insert([{
-        name: validated.name,
-        email: validated.email,
-        phone: validated.phone,
-        pickup_location: validated.pickup_location,
-        drop_location: validated.drop_location,
-        pickup_date: format(date, "yyyy-MM-dd"),
-        pickup_time: time,
-        passengers: validated.passengers,
-        special_requests: validated.special_requests || null,
-      }]).select("order_number");
+      /* 1️⃣ INSERT BOOKING */
+      const { data, error } = await supabase
+        .from("bookings")
+        .insert({
+          ...validated,
+          pickup_date: format(date, "yyyy-MM-dd"),
+          pickup_time: time,
+          status: "pending",
+        })
+        .select("*")
+        .single();
 
       if (error) throw error;
 
-      const orderNumber = data?.[0]?.order_number;
-      const trackingUrl = `${window.location.origin}/track/${orderNumber}`;
-      
-      toast.success(
-        `Booking confirmed! Order: ${orderNumber}`,
-        {
-          description: "Track your ride at: " + trackingUrl,
-          duration: 10000,
-        }
-      );
-      
-      // Copy tracking link to clipboard
-      navigator.clipboard.writeText(trackingUrl);
-      
-      setTimeout(() => navigate("/"), 3000);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        toast.error(error.errors[0].message);
-      } else {
-        toast.error("Failed to submit booking. Please try again.");
-        console.error(error);
-      }
+      /* 2️⃣ CALL EDGE FUNCTION (THIS WAS MISSING) */
+     const { error: emailError } = await supabase.functions.invoke(
+  "send-booking-email",
+  {
+    body: {
+      email: data.email,
+      booking_id: data.id,
+      name: data.name,
+       phone: data.phone, 
+      pickup_location: data.pickup_location,
+      drop_location: data.drop_location,
+      pickup_date: data.pickup_date,
+      pickup_time: data.pickup_time,
+      status: data.status,
+    },
+  }
+);
+
+if (emailError) {
+  console.error("EMAIL FUNCTION ERROR FULL:", emailError);
+}
+
+
+      /* 3️⃣ SUCCESS UI */
+      toast.success("Booking confirmed! Email sent 📧");
+      setTimeout(() => navigate("/"), 2500);
+
+    } catch (err: any) {
+      console.error("BOOKING ERROR:", err);
+      toast.error("Booking failed. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -97,147 +106,55 @@ const Booking = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-      
       <div className="container mx-auto px-4 py-24">
-        <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold mb-4">Book Your Cab</h1>
-            <p className="text-muted-foreground">Fill in the details below to reserve your ride</p>
-          </div>
+        <Card className="max-w-2xl mx-auto">
+          <CardHeader>
+            <CardTitle>Book Your Cab</CardTitle>
+            <CardDescription>Fill travel details</CardDescription>
+          </CardHeader>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Booking Details</CardTitle>
-              <CardDescription>Enter your travel information</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Full Name *</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number *</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Input placeholder="Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+              <Input placeholder="Email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+              <Input placeholder="Phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+              <Input placeholder="Pickup location" value={formData.pickup_location} onChange={(e) => setFormData({ ...formData, pickup_location: e.target.value })} />
+              <Input placeholder="Drop location" value={formData.drop_location} onChange={(e) => setFormData({ ...formData, drop_location: e.target.value })} />
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    required
-                  />
-                </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date ? format(date, "PPP") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent>
+                  <Calendar mode="single" selected={date} onSelect={setDate} />
+                </PopoverContent>
+              </Popover>
 
-                <div className="space-y-2">
-                  <Label htmlFor="pickup">Pickup Location *</Label>
-                  <Input
-                    id="pickup"
-                    value={formData.pickup_location}
-                    onChange={(e) => setFormData({ ...formData, pickup_location: e.target.value })}
-                    placeholder="e.g., Chennai"
-                    required
-                  />
-                </div>
+              <Select value={time} onValueChange={setTime}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pickup time" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 24 }).map((_, i) => (
+                    <SelectItem key={i} value={`${i.toString().padStart(2, "0")}:00`}>
+                      {i}:00
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-                <div className="space-y-2">
-                  <Label htmlFor="drop">Drop Location *</Label>
-                  <Input
-                    id="drop"
-                    value={formData.drop_location}
-                    onChange={(e) => setFormData({ ...formData, drop_location: e.target.value })}
-                    placeholder="e.g., Tirumala Temple"
-                    required
-                  />
-                </div>
+              <Textarea placeholder="Special requests" value={formData.special_requests} onChange={(e) => setFormData({ ...formData, special_requests: e.target.value })} />
 
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Pickup Date *</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left">
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {date ? format(date, "PPP") : "Select date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar mode="single" selected={date} onSelect={setDate} disabled={(date) => date < new Date()} />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="time">Pickup Time *</Label>
-                    <Select value={time} onValueChange={setTime} required>
-                      <SelectTrigger>
-                        <Clock className="mr-2 h-4 w-4" />
-                        <SelectValue placeholder="Select time" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 24 }, (_, i) => i).map((hour) => (
-                          <SelectItem key={hour} value={`${hour.toString().padStart(2, "0")}:00`}>
-                            {hour.toString().padStart(2, "0")}:00
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="passengers">Number of Passengers *</Label>
-                  <Input
-                    id="passengers"
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={formData.passengers}
-                    onChange={(e) => setFormData({ ...formData, passengers: parseInt(e.target.value) || 1 })}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="requests">Special Requests (Optional)</Label>
-                  <Textarea
-                    id="requests"
-                    value={formData.special_requests}
-                    onChange={(e) => setFormData({ ...formData, special_requests: e.target.value })}
-                    placeholder="Any specific requirements or preferences..."
-                    rows={4}
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? "Submitting..." : "Submit Booking"}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
+              <Button type="submit" disabled={isSubmitting} className="w-full">
+                {isSubmitting ? "Booking..." : "Confirm Booking"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
-
       <Footer />
     </div>
   );
